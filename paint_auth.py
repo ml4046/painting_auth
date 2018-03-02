@@ -6,6 +6,7 @@ import pywt
 #import matplotlib.image as mpimg
 import glob
 
+from PIL import Image
 from scipy.stats import skew, kurtosis
 from sklearn.preprocessing import LabelBinarizer, LabelEncoder
 from sklearn.model_selection import train_test_split
@@ -134,9 +135,9 @@ def get_features(x, level, wavelet='haar'):
             features.extend((mean, var, skew, kurt))
             
             
-    #for l in range(len(coeff)-3):
-        #err = generate_error_stats(coeff[l], coeff[l+1], coeff[l+2])
-        #features.extend(err.flatten())
+    for l in range(len(coeff)-3):
+        err = generate_error_stats(coeff[l], coeff[l+1], coeff[l+2])
+        features.extend(err.flatten())
     
             
         
@@ -227,6 +228,22 @@ def import_data(all_info, label_name = 'artist', path='train_1/**', num_images=5
     
     return (np.array(images), label)
 
+
+def import_image(path, size=(256,256)):
+    """
+    Imports an image with given path and resizes accordingly
+    
+    Params:
+        path: str path of the image
+        size: (m,n) desired size of the image
+        
+    Returns:
+        img: (m,n) array of pixels
+    """
+    img = Image.open(path)
+    return np.asarray(img.resize(size))
+    
+    
 def model(X, y):
     """
     Fit ML model to X given y labels
