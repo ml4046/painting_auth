@@ -162,7 +162,7 @@ def generate_features(imgs, y, level=6):
         
     return (np.array(features), y)
     
-def generate_error_stats(curr, next1, next2):
+def generate_error_stats(curr, next1, next2, eps=0.001):
     """
     Return error stats for given level based on neighborhood prediction
     Error based on log2 error
@@ -174,7 +174,7 @@ def generate_error_stats(curr, next1, next2):
         Q = neigh_matrix(subbands[i], curr, next1, next2)
         w = linear_predictor(Q, curr[i])       
         #+1 to avoid 0 division error
-        err = np.log2(abs(curr[i].flatten())+1) - np.log2(abs(np.matmul(Q,w))+1)
+        err = np.log2(abs(curr[i].flatten())+eps) - np.log2(abs(np.matmul(Q,w))+eps)
         mean, var, skew, kurtosis = get_stats(err)
         error_stats.append([mean, var, skew, kurtosis])
         
@@ -191,9 +191,9 @@ def get_stats(x):
 def rgb2gray(rgb):
     return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
-def import_data(all_info, label_name = 'artist', path='train_1/**', num_images=5000, show_step=100, all_im=False):
+def import_data(all_info, size=(256,256), label_name = 'artist', path='train_1/**', num_images=5000, show_step=100, all_im=False, one_hot=False):
     """
-    Import images as grayscale
+    Import images as grayscale, resizing to 256, 256
     Param:
         all_info: df data info
         label_name: str column name of desired label (can be genre)
@@ -201,11 +201,14 @@ def import_data(all_info, label_name = 'artist', path='train_1/**', num_images=5
         num_images: int number of images
         show_step: int print num. images imported every show_step
         all_im: bool import all images
+        one_hot: bool return one_hot label instead of multiclass
     Return:
         images: array of images in grayscale
-        info: filenames
+        mult: multi class labels
+        one_hot: one hot labels
         
     """
+    path = '/Users/Mason/Desktop/adv_big_data/' + path
     file_names = glob.glob(path)
     images = []
     names = []
@@ -216,17 +219,25 @@ def import_data(all_info, label_name = 'artist', path='train_1/**', num_images=5
     
     for i in range(num_images):
         if i % show_step == 0:
-            print 'imported images: %d' % (i + 100) 
+            print 'imported images: %d' % (i + 100)
+        im_name = file_names[i].split('/')[-1]
+        img = import_image(file_names[i],size=size)
+        
+        if len(img.shape) != 2:
+            images.append(rgb2gray(img))
+            label.append(all_info[all_info['filename']==im_name][label_name].values[0])
+            names.append(im_name)
             
-        im_name = file_names[i].split('/')[1]
-        images.append(rgb2gray(im.imread(file_names[i])))
-        label.append(all_info[all_info['filename']==im_name][label_name].values[0])
             
     #one-hot encode label
-    le = LabelEncoder()
-    label = le.fit_transform(label)
+    lb = LabelBinarizer()
+    one_hot = lb.fit_transform(label)
     
-    return (np.array(images), label)
+    #multiclass encode
+    le = LabelEncoder()
+    mult = le.fit_transform(label)
+    
+    return (np.array(images), mult, one_hot)
 
 
 def import_image(path, size=(256,256)):
@@ -241,6 +252,8 @@ def import_image(path, size=(256,256)):
         img: (m,n) array of pixels
     """
     img = Image.open(path)
+    if len(img.size) != 2:
+        return np.array([])
     return np.asarray(img.resize(size))
     
     
