@@ -1,5 +1,7 @@
+import numpy as np
 import tensorflow as tf
-
+import paint_auth as pa
+from sklearn.model_selection import train_test_split, StratifiedKFold
 
 def weight_variable(shape):
     init = tf.truncated_normal(shape, stddev=0.1)
@@ -119,28 +121,42 @@ def run_model(X, num_classes):
         output = model(x, num_classes)
         
         sess.run(tf.global_variables_initializer())
-        sess.run(output, feed_dict={x: X})      
-    
-if __name__ == "__main__":
-    
+        sess.run(output, feed_dict={x: X})
+
+def next_batch(num, data, labels):
+    """
+    Return a total of num random samples and labels. 
+    """
+    idx = np.arange(0, len(data))
+    np.random.shuffle(idx)
+    idx = idx[:num]
+    data_shuffle = [data[i] for i in idx]
+    labels_shuffle = [labels[i] for i in idx]
+
+    return np.asarray(data_shuffle), np.asarray(labels_shuffle)
+        
+def train(X, y):
+    """
+    Trains model given data X and y labels
+    """
     # Parameters
     learning_rate = 0.005
+    training_epochs = 3
+    batch_size = 10
+    display_step = 1
     
-    training_epochs = 2000
-    batch_size = 100
-    
-    display_step = 10
+    n = 256
+    m = 256
+    num_classes = 1179
     
     with tf.Session() as sess:
         
         #place holders for data
-        x = tf.placeholder(tf.float32, shape=[None, 784])
-        x_image = tf.reshape(x, [-1, 28, 28, 1])
-        y_ = tf.placeholder(tf.float32, shape=[None, 10])        
+        x = tf.placeholder(tf.float32, shape=[None, n, m, 1])
+        y_ = tf.placeholder(tf.float32, shape=[None, num_classes])        
 
         #initialization
-        keep_prob = tf.placeholder(tf.float32)
-        output = model(x_image, keep_prob)
+        output = model(x, num_classes)
         cost = loss(output, y_)
         train_step = train(cost, learning_rate)
         eval_op = evaluate(output, y_)
@@ -148,13 +164,16 @@ if __name__ == "__main__":
         sess.run(tf.global_variables_initializer())
         
         for i in range(training_epochs):
-            batch = mnist.train.next_batch(batch_size)
-            train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
+            batch = next_batch(batch_size, X, y)
+            train_step.run(feed_dict={x: batch[0], y_: batch[1], num_classes: num_classes})
             
             if i % display_step == 0:
                 train_accuracy = sess.run(eval_op, feed_dict={
-                    x:batch[0], y_: batch[1], keep_prob: 1.0})
+                    x:batch[0], y_: batch[1], num_classes: num_classes})
                 print("step %d, training accuracy %g"%(i, train_accuracy))
         
-        print('test accuracy %g' % sess.run(eval_op, feed_dict={
-                x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0}))
+        
+    
+    
+if __name__ == "__main__":
+    pass
