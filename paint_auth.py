@@ -240,7 +240,7 @@ def import_data(all_info, size=(256,256), label_name = 'artist', path='train_1/*
     return (np.array(images), mult, one_hot)
 
 
-def import_image(path, size=(256,256)):
+def import_image(path, size=(256,256), resize=True):
     """
     Imports an image with given path and resizes accordingly
     
@@ -252,9 +252,25 @@ def import_image(path, size=(256,256)):
         img: (m,n) array of pixels
     """
     img = Image.open(path)
-    if len(img.size) != 2:
-        return np.array([])
-    return np.asarray(img.resize(size))
+    if resize:
+        return np.asarray(img.resize(size))
+    return np.asarray(img)
+    
+def patch_image(img, window_size):
+    """
+    Segments an image to multiple patches based on given window size
+    Params:
+        img: 2d array of pixels
+        window_size: tuple of desired window size
+    Returns:
+        patches: array containing segmented pixels
+    """
+    patches = []
+    w, l = window_size
+    
+
+    
+    
     
     
 def model(X, y):
@@ -273,8 +289,7 @@ def model(X, y):
     print train_scores
     print train_scores.mean()
     return train_scores
-    
-    
+
     
 
 if __name__ == "__main__":
