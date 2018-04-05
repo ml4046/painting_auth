@@ -17,7 +17,7 @@ def gaussian_kernel(x,y, gamma=5):
     """
     return np.exp(-gamma * np.square(np.linalg.norm((abs(x-y)))))
 
-def coarseness(img):
+def coarseness(img, D=16):
     """
     Computes the tamura coarsness value
     
@@ -25,10 +25,16 @@ def coarseness(img):
     """
     m, n = img.shape
     z = img.flatten()
+    mag, theta = gradient(img)
+    mag = mag.flatten()
     
-    SQ = orf_matrix(size)
+    orientation = ang_map(z,D)
+    position = rbf_map(z, D/2)
+    
+    coarseness = np.kron()
+    
 
-def grad_magnitude(img, sigma=5, eps=1e-5):
+def gradient(img, eps=1e-5):
     """
     Computes gradient of image after gaussian smoothing, similar to SIFT filters
     
@@ -36,13 +42,23 @@ def grad_magnitude(img, sigma=5, eps=1e-5):
     https://github.com/flyfj/RGBDMaze/blob/master/KernelDescriptor/kdes/gradkdes_dense.m
     
     img: 2d array of an image
-    sigma: float std of gaussian kernel
     
     Return:
-    """    
-    mag = gaussian_gradient_magnitude(img, sigma=sigma)
-    #normalize with eps > 0
-    return mag / np.sqrt(np.sum(np.square(mag)+eps))
+    mag: array of magnitude
+    theta: array of orientation
+    """
+    sobelx = cv2.Sobel(img,-1,1,0,ksize=3)
+    sobely = cv2.Sobel(img,-1,0,1,ksize=3) 
+    mag = np.sqrt(sobelx ** 2 + sobely ** 2)
+    t = np.arctan(sobely / np.maximum(sobelx,1e-5))
+    
+    #normalize
+    mag = mag / np.sqrt(np.sum(mag ** 2))
+    theta = []
+    for i in range(t.shape[0]):
+        theta.append(np.array([(np.sin(t[i][j]), np.cos(t[i][j])) for j in range(t.shape[1])]))
+    
+    return mag, theta
 
 def orf_matrix(size):
     """
@@ -70,7 +86,7 @@ def rbf_map(x, D):
     x: array
     D: int desired dimension
     Return:
-    phi_x = array of mapped feature
+    phi_x: array of mapped feature
     """
     d = len(x)
     W = orf_matrix((D,d))
@@ -80,3 +96,18 @@ def rbf_map(x, D):
         phi_x[i] = np.sin(np.matmul(W[i], x))
         phi_x[D+i] = np.cos(np.matmul(W[i], x))
     return np.sqrt(1.0/D) * phi_x
+
+def ang_map(x, D):
+    """
+    Angular kernel feature map with random Gaussian
+    
+    x: array
+    D: int mapped dimension
+    
+    Return:
+    phi_x: array of mapped feature
+    """
+    d = len(x)
+    G = np.random.normal(size=(D,d))
+    return 1.0/np.sqrt(D) * np.sign(np.matmul(G,x))
+    
