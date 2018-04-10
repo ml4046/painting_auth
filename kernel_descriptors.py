@@ -27,9 +27,9 @@ def coarseness(img, D=16):
     z = img.flatten()
     mag, theta = gradient(img)
     mag = mag.flatten()
-    
-    orientation = ang_map(z,D)
+    theta = rbf_map(theta.flatten(), len(mag)/2)
     position = rbf_map(z, D/2)
+    
     
     coarseness = np.kron()
     
@@ -50,15 +50,15 @@ def gradient(img, eps=1e-5):
     sobelx = cv2.Sobel(img,-1,1,0,ksize=3)
     sobely = cv2.Sobel(img,-1,0,1,ksize=3) 
     mag = np.sqrt(sobelx ** 2 + sobely ** 2)
-    t = np.arctan(sobely / np.maximum(sobelx,1e-5))
+    t = np.arctan2(sobely, sobelx)
     
     #normalize
     mag = mag / np.sqrt(np.sum(mag ** 2))
-    theta = []
-    for i in range(t.shape[0]):
-        theta.append(np.array([(np.sin(t[i][j]), np.cos(t[i][j])) for j in range(t.shape[1])]))
+    #theta = []
+    #for i in range(t.shape[0]):
+        #theta.append(np.array([(np.sin(t[i][j]), np.cos(t[i][j])) for j in range(t.shape[1])]))
     
-    return mag, theta
+    return mag, t
 
 def orf_matrix(size):
     """
@@ -73,10 +73,21 @@ def orf_matrix(size):
         Q: ndarray random gaussian
     """
     D,d = size
-    S = np.diag(np.random.chisquare(d, size=d))[:D]
-    G = np.random.normal(size=(d,d))
-    Q, R = np.linalg.qr(G)
-    return np.matmul(S,Q)
+    if D <= d:
+        S = np.diag(np.random.chisquare(d, size=D))
+        G = np.random.normal(size=(D,d))
+        Q, R = np.linalg.qr(G)
+        return np.matmul(S,Q)
+    #stacking ind. G if D > d
+    else:
+        S = np.diag(np.random.chisquare(d, size=D))
+        G_stack = [np.random.normal(size=(d,d)) for i in range(D/d+1)]
+        Q_stack = np.concatenate([np.linalg.qr(G_stack[i])[0] for i in range(len(G_stack))], axis=0)[:D]
+        return np.matmul(S, Q_stack)
+        
+        
+
+
     
 def rbf_map(x, D):
     """
