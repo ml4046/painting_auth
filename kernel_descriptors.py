@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 from scipy.ndimage import gaussian_gradient_magnitude
 
-def gaussian_kernel(x,y, gamma=5):
+def gaussian_kernel(x,y, gamma=0.5):
     """
     Computes spatial difference between x,y with gaussian kernel
     x: array of values
@@ -16,10 +16,14 @@ def gaussian_kernel(x,y, gamma=5):
     val: float numerical value of the kernel value
     """
     return np.exp(-gamma * np.square(np.linalg.norm((abs(x-y)))))
+def jlt_map(x, k):
+    d = len(x)
+    A = orf_matrix((k,d),sigma=1)
+    return (1.0 / np.sqrt(k)) * np.matmul(A, x)
 
-def coarseness(img, D=16):
+def kdes_grad(img, D=16, k=16, sigma=1):
     """
-    Computes the tamura coarsness value
+    Computes the gradient kernel using orf matrix
     
     Feature map approximated with random ortho gaussian matrix
     """
@@ -27,13 +31,21 @@ def coarseness(img, D=16):
     z = img.flatten()
     mag, theta = gradient(img)
     mag = mag.flatten()
-    theta = rbf_map(theta.flatten(), len(mag)/2)
+    theta = rbf_map(theta.flatten(), len(mag), sigma=sigma)
+    mag = np.sqrt(1.0/len(mag)*2) * np.matmul(orf_matrix((len(mag)*2,len(mag))), mag)
+    
     position = rbf_map(z, D/2)
+    grad = np.matmul(orf_matrix((k,len(mag))),mag*theta)
     
-    
-    coarseness = np.kron()
-    
+    return np.kron(grad, position)
 
+    
+def kgrad(X, Y):
+    """
+    Computes kgrad using descriptor estimated
+    """
+    return np.matmul(kdes_grad(X), kdes_grad(Y))
+    
 def gradient(img, eps=1e-5):
     """
     Computes gradient of image after gaussian smoothing, similar to SIFT filters
@@ -51,16 +63,12 @@ def gradient(img, eps=1e-5):
     sobely = cv2.Sobel(img,-1,0,1,ksize=3) 
     mag = np.sqrt(sobelx ** 2 + sobely ** 2)
     t = np.arctan2(sobely, sobelx)
-    
     #normalize
     mag = mag / np.sqrt(np.sum(mag ** 2))
-    #theta = []
-    #for i in range(t.shape[0]):
-        #theta.append(np.array([(np.sin(t[i][j]), np.cos(t[i][j])) for j in range(t.shape[1])]))
     
     return mag, t
 
-def orf_matrix(size):
+def orf_matrix(size, sigma=1):
     """
     Generates SQ where S diagonal matrix with entries sampled from chi-dist with d-degree freedom and
     Orthogonal random gaussian matrix Q with each entry sampled independently from N(0,1)
@@ -75,21 +83,18 @@ def orf_matrix(size):
     D,d = size
     if D <= d:
         S = np.diag(np.random.chisquare(d, size=D))
-        G = np.random.normal(size=(D,d))
+        G = np.random.normal(size=(d,d))
         Q, R = np.linalg.qr(G)
-        return np.matmul(S,Q)
+        return np.matmul(S,Q[:D])
+    
     #stacking ind. G if D > d
     else:
         S = np.diag(np.random.chisquare(d, size=D))
         G_stack = [np.random.normal(size=(d,d)) for i in range(D/d+1)]
         Q_stack = np.concatenate([np.linalg.qr(G_stack[i])[0] for i in range(len(G_stack))], axis=0)[:D]
-        return np.matmul(S, Q_stack)
-        
-        
-
-
+        return (1.0/sigma) * np.matmul(S, Q_stack)
     
-def rbf_map(x, D):
+def rbf_map(x, D, sigma=1):
     """
     RBF random feature map approximated by random gaussian matrix
     phi(x) = sqrt(1/D)[sin(w1T x),..., sin(wDT x), cos(w1T x),..., cos(wDT x)]T
@@ -100,12 +105,13 @@ def rbf_map(x, D):
     phi_x: array of mapped feature
     """
     d = len(x)
-    W = orf_matrix((D,d))
+    W = orf_matrix((D,d), sigma=sigma)
+
     #compute sin and cos
     phi_x = np.zeros(2*D)
     for i in range(D):
         phi_x[i] = np.sin(np.matmul(W[i], x))
-        phi_x[D+i] = np.cos(np.matmul(W[i], x))
+        phi_x[i+D] = np.cos(np.matmul(W[i], x))
     return np.sqrt(1.0/D) * phi_x
 
 def ang_map(x, D):
