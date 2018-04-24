@@ -5,7 +5,6 @@ import pywt
 #import matplotlib.pyplot as plt
 #import matplotlib.image as mpimg
 import glob
-
 from PIL import Image
 from scipy.stats import skew, kurtosis
 from sklearn.preprocessing import LabelBinarizer, LabelEncoder
@@ -13,6 +12,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_val_score
 from sklearn import svm
 from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction import image
+from lxml import etree as ET
 
 def decomp(x, level, wavelet='haar'):
     """
@@ -191,7 +192,7 @@ def get_stats(x):
 def rgb2gray(rgb):
     return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
-def import_data(all_info, size=(256,256), label_name = 'artist', path='train_1/**', num_images=5000, show_step=100, all_im=False, one_hot=False):
+def import_data(path, all_info, size=(256,256), label_name = 'artist', num_images=5000, show_step=100, all_im=False, resize=True):
     """
     Import images as grayscale, resizing to 256, 256
     Param:
@@ -208,7 +209,6 @@ def import_data(all_info, size=(256,256), label_name = 'artist', path='train_1/*
         one_hot: one hot labels
         
     """
-    path = '/Users/Mason/Desktop/adv_big_data/' + path
     file_names = glob.glob(path)
     images = []
     names = []
@@ -221,13 +221,15 @@ def import_data(all_info, size=(256,256), label_name = 'artist', path='train_1/*
         if i % show_step == 0:
             print 'imported images: %d' % (i + 100)
         im_name = file_names[i].split('/')[-1]
-        img = import_image(file_names[i],size=size)
+        img = rgb2gray(import_image(file_names[i],size=size,resize=resize))
+        images.append(img)
+        label.append(all_info[all_info['name']==im_name][label_name].values[0])
         
         if len(img.shape) != 2:
             images.append(rgb2gray(img))
-            label.append(all_info[all_info['filename']==im_name][label_name].values[0])
+            label.append(all_info[all_info['name']==im_name][label_name].values[0])
             names.append(im_name)
-            
+        
             
     #one-hot encode label
     lb = LabelBinarizer()
@@ -256,23 +258,6 @@ def import_image(path, size=(256,256), resize=True):
         return np.asarray(img.resize(size))
     return np.asarray(img)
     
-def patch_image(img, window_size):
-    """
-    Segments an image to multiple patches based on given window size
-    Params:
-        img: 2d array of pixels
-        window_size: tuple of desired window size
-    Returns:
-        patches: array containing segmented pixels
-    """
-    patches = []
-    w, l = window_size
-    
-
-    
-    
-    
-    
 def model(X, y):
     """
     Fit ML model to X given y labels
@@ -290,7 +275,64 @@ def model(X, y):
     print train_scores.mean()
     return train_scores
 
+def extract_info(root):
+    info = root[1][0]
+    title = None
+    artist = None
+    medium = None
+    period = None
+    for i in info:
+        if i.tag == 'dc:title':
+            title = i.text
+        if i.tag == 'dc:creator':
+            artist = i.text
+        if i.tag == 'dc:type':
+            medium = i.text
+        if i.tag == 'dc:coverage':
+            period = i.text
+    return (title, artist, medium, period)
+
+def import_dataset(path, all_info, size=(256,256), label_name = 'artist', num_images=5000, show_step=100, all_im=False, resize=True):
+    """
+    Import and resize to 256, 256
+    Param:
+        path: str path of image
+        file_names: list of names of the images
+        size: tuple size of the image
+    Return:
+        images: array of images in grayscale
+        mult: multi class labels
+        one_hot: one hot labels
+        
+    """
+    images = []
+    names = []
+    label = []
+    file_names = all_info['file_name']
     
+    for i in range(len(file_names)):
+        if i % show_step == 0:
+            print 'imported images: %d' % (i + 100)
+        im_name = file_names[i].split('/')[-1]
+        img = import_image(path+'/'+file_names[i]+'.jpg',size=size,resize=resize)
+        images.append(img)
+        label.append(all_info[all_info['file_name']==im_name][label_name].values[0])
+        if len(img.shape) != 2 or len(img.shape) != 3:
+            images.append(img)
+            label.append(all_info[all_info['file_name']==im_name][label_name].values[0])
+            names.append(im_name)
+        
+            
+    #one-hot encode label
+    lb = LabelBinarizer()
+    one_hot = lb.fit_transform(label)
+    
+    #multiclass encode
+    le = LabelEncoder()
+    mult = le.fit_transform(label)
+    
+    return (np.array(images), mult, one_hot)
+
 
 if __name__ == "__main__":
     
