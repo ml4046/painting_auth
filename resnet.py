@@ -114,7 +114,7 @@ class Resnet(object):
         ##avg pooling can be done with with reduce_mean
         pool = tf.reduce_mean(b8, [1,2], keepdims=True)
         pool = tf.reshape(pool, [-1,pool.shape[-1]])
-        #pool = tf.layers.dense(pool, units=1000, activation=tf.nn.softmax)
+        pool = tf.layers.dense(pool, units=1000, activation=tf.nn.softmax)
         output = tf.layers.dense(pool, units=self.n_classes, activation=tf.nn.softmax)
         self.output = output
         
